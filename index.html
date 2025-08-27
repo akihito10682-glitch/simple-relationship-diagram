@@ -1,0 +1,378 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプル人物相関図</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .input-section h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .person-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        
+        .person-input input, .person-input select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .person-input input[type="text"] {
+            flex: 1;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .remove-btn {
+            background-color: #dc3545;
+            padding: 5px 10px;
+        }
+        
+        .remove-btn:hover {
+            background-color: #c82333;
+        }
+        
+        #diagram {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+        
+        .node {
+            fill: #69b3ff;
+            stroke: #333;
+            stroke-width: 2px;
+            cursor: pointer;
+        }
+        
+        .node:hover {
+            fill: #4da6ff;
+        }
+        
+        .link {
+            stroke-width: 2px;
+        }
+        
+        .ally {
+            stroke: #28a745;
+        }
+        
+        .enemy {
+            stroke: #dc3545;
+        }
+        
+        .node-text {
+            fill: #333;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            font-size: 14px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        
+        .legend {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        
+        .legend-line {
+            display: inline-block;
+            width: 30px;
+            height: 3px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        
+        .sample-data {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
+        
+        .sample-data button {
+            background-color: #6c757d;
+            font-size: 12px;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>シンプル人物相関図生成ツール</h1>
+        
+        <div class="input-section">
+            <h2>人物と関係性の入力</h2>
+            <div id="relationships"></div>
+            <button onclick="addRelationshipInput()">関係を追加</button>
+            <button onclick="generateDiagram()">相関図を生成</button>
+            
+            <div class="sample-data">
+                <strong>サンプルデータを読み込む:</strong>
+                <button onclick="loadSampleData()">RPGパーティーの例</button>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <h3>凡例</h3>
+            <div class="legend-item">
+                <div class="legend-line" style="background-color: #28a745;"></div>
+                <span>味方</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line" style="background-color: #dc3545;"></div>
+                <span>敵</span>
+            </div>
+        </div>
+        
+        <svg id="diagram" width="100%" height="500"></svg>
+    </div>
+
+    <script>
+        let relationshipCount = 0;
+        let nodes = [];
+        let links = [];
+
+        function addRelationshipInput() {
+            const container = document.getElementById('relationships');
+            const div = document.createElement('div');
+            div.className = 'person-input';
+            div.innerHTML = `
+                <input type="text" placeholder="人物A" class="person-a">
+                <select class="relationship">
+                    <option value="ally">味方</option>
+                    <option value="enemy">敵</option>
+                </select>
+                <input type="text" placeholder="人物B" class="person-b">
+                <button class="remove-btn" onclick="removeRelationship(this)">削除</button>
+            `;
+            container.appendChild(div);
+            relationshipCount++;
+        }
+
+        function removeRelationship(button) {
+            button.parentElement.remove();
+        }
+
+        function loadSampleData() {
+            // 既存の入力をクリア
+            document.getElementById('relationships').innerHTML = '';
+            
+            // サンプルデータ
+            const sampleData = [
+                ['勇者', 'ally', '魔法使い'],
+                ['勇者', 'ally', '戦士'],
+                ['魔法使い', 'ally', '戦士'],
+                ['勇者', 'enemy', '魔王'],
+                ['魔王', 'ally', 'ドラゴン'],
+                ['魔王', 'ally', '闇の騎士']
+            ];
+
+            sampleData.forEach(([personA, relation, personB]) => {
+                addRelationshipInput();
+                const inputs = document.querySelectorAll('.person-input');
+                const lastInput = inputs[inputs.length - 1];
+                lastInput.querySelector('.person-a').value = personA;
+                lastInput.querySelector('.relationship').value = relation;
+                lastInput.querySelector('.person-b').value = personB;
+            });
+        }
+
+        function generateDiagram() {
+            // データ収集
+            const relationships = [];
+            const personSet = new Set();
+            
+            document.querySelectorAll('.person-input').forEach(input => {
+                const personA = input.querySelector('.person-a').value.trim();
+                const relation = input.querySelector('.relationship').value;
+                const personB = input.querySelector('.person-b').value.trim();
+                
+                if (personA && personB) {
+                    relationships.push({source: personA, target: personB, type: relation});
+                    personSet.add(personA);
+                    personSet.add(personB);
+                }
+            });
+
+            // ノードとリンクの準備
+            nodes = Array.from(personSet).map(person => ({id: person, name: person}));
+            links = relationships.map(rel => ({
+                source: rel.source,
+                target: rel.target,
+                type: rel.type
+            }));
+
+            drawDiagram();
+        }
+
+        function drawDiagram() {
+            const svg = document.getElementById('diagram');
+            const width = svg.clientWidth;
+            const height = 500;
+            
+            // SVGクリア
+            svg.innerHTML = '';
+            
+            if (nodes.length === 0) {
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', width / 2);
+                text.setAttribute('y', height / 2);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', '#666');
+                text.textContent = '関係を入力して相関図を生成してください';
+                svg.appendChild(text);
+                return;
+            }
+
+            // 力学シミュレーションの設定
+            const simulation = {
+                nodes: JSON.parse(JSON.stringify(nodes)),
+                links: JSON.parse(JSON.stringify(links))
+            };
+
+            // ノードの初期位置をランダムに設定
+            simulation.nodes.forEach((node, i) => {
+                const angle = (i / simulation.nodes.length) * 2 * Math.PI;
+                const radius = Math.min(width, height) * 0.3;
+                node.x = width / 2 + Math.cos(angle) * radius;
+                node.y = height / 2 + Math.sin(angle) * radius;
+            });
+
+            // 簡単な力学計算（50回反復）
+            for (let iteration = 0; iteration < 50; iteration++) {
+                // リンクの力（バネ力）
+                simulation.links.forEach(link => {
+                    const source = simulation.nodes.find(n => n.id === link.source);
+                    const target = simulation.nodes.find(n => n.id === link.target);
+                    
+                    if (source && target) {
+                        const dx = target.x - source.x;
+                        const dy = target.y - source.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const targetDistance = 120;
+                        const force = (distance - targetDistance) * 0.1;
+                        
+                        const fx = (dx / distance) * force;
+                        const fy = (dy / distance) * force;
+                        
+                        source.x += fx;
+                        source.y += fy;
+                        target.x -= fx;
+                        target.y -= fy;
+                    }
+                });
+
+                // ノード間の反発力
+                simulation.nodes.forEach((nodeA, i) => {
+                    simulation.nodes.forEach((nodeB, j) => {
+                        if (i !== j) {
+                            const dx = nodeB.x - nodeA.x;
+                            const dy = nodeB.y - nodeA.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+                            const repelForce = 500 / (distance * distance);
+                            
+                            const fx = (dx / distance) * repelForce;
+                            const fy = (dy / distance) * repelForce;
+                            
+                            nodeA.x -= fx;
+                            nodeA.y -= fy;
+                        }
+                    });
+                });
+
+                // 境界内に制限
+                simulation.nodes.forEach(node => {
+                    const margin = 50;
+                    node.x = Math.max(margin, Math.min(width - margin, node.x));
+                    node.y = Math.max(margin, Math.min(height - margin, node.y));
+                });
+            }
+
+            // リンクの描画
+            simulation.links.forEach(link => {
+                const source = simulation.nodes.find(n => n.id === link.source);
+                const target = simulation.nodes.find(n => n.id === link.target);
+                
+                if (source && target) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', source.x);
+                    line.setAttribute('y1', source.y);
+                    line.setAttribute('x2', target.x);
+                    line.setAttribute('y2', target.y);
+                    line.setAttribute('class', `link ${link.type}`);
+                    svg.appendChild(line);
+                }
+            });
+
+            // ノードの描画
+            simulation.nodes.forEach(node => {
+                // 円
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', node.x);
+                circle.setAttribute('cy', node.y);
+                circle.setAttribute('r', 25);
+                circle.setAttribute('class', 'node');
+                svg.appendChild(circle);
+
+                // テキスト
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', node.x);
+                text.setAttribute('y', node.y);
+                text.setAttribute('class', 'node-text');
+                text.textContent = node.name;
+                svg.appendChild(text);
+            });
+        }
+
+        // 初期状態で1つの入力フィールドを追加
+        addRelationshipInput();
+    </script>
+</body>
+</html>
