@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>シンプル人物相関図</title>
+    <title>陣営対応人物相関図</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -30,20 +29,78 @@
             color: #333;
         }
         
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background-color: #f8f9fa;
+            border: none;
+            cursor: pointer;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            margin-right: 5px;
+        }
+        
+        .tab.active {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
         .person-input {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .person-input input, .person-input select, .person-input textarea {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: Arial, sans-serif;
+        }
+        
+        .person-input input[type="text"] {
+            min-width: 100px;
+        }
+        
+        .person-memo {
+            grid-column: 1 / -1;
+            min-height: 60px;
+            resize: vertical;
+            font-size: 14px;
+        }
+        
+        .relationship-input {
             display: flex;
             gap: 10px;
             margin-bottom: 10px;
             align-items: center;
         }
         
-        .person-input input, .person-input select {
+        .relationship-input input, .relationship-input select {
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
         }
         
-        .person-input input[type="text"] {
+        .relationship-input input[type="text"] {
             flex: 1;
         }
         
@@ -73,7 +130,14 @@
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            min-height: 500px;
+            min-height: 600px;
+        }
+        
+        .faction-group {
+            fill: rgba(128, 128, 128, 0.1);
+            stroke: #666;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
         }
         
         .node {
@@ -102,9 +166,23 @@
         .node-text {
             fill: #333;
             text-anchor: middle;
-            dominant-baseline: middle;
             font-size: 14px;
             font-weight: bold;
+            pointer-events: none;
+        }
+        
+        .node-attribute {
+            fill: #666;
+            text-anchor: middle;
+            font-size: 11px;
+            pointer-events: none;
+        }
+        
+        .faction-label {
+            fill: #666;
+            font-size: 16px;
+            font-weight: bold;
+            text-anchor: middle;
             pointer-events: none;
         }
         
@@ -129,6 +207,16 @@
             vertical-align: middle;
         }
         
+        .legend-rect {
+            display: inline-block;
+            width: 20px;
+            height: 15px;
+            margin-right: 5px;
+            vertical-align: middle;
+            border: 2px dashed #666;
+            background-color: rgba(128, 128, 128, 0.1);
+        }
+        
         .sample-data {
             margin-top: 15px;
             padding: 10px;
@@ -145,17 +233,33 @@
 </head>
 <body>
     <div class="container">
-        <h1>シンプル人物相関図生成ツール</h1>
+        <h1>陣営対応人物相関図生成ツール</h1>
         
         <div class="input-section">
-            <h2>人物と関係性の入力</h2>
-            <div id="relationships"></div>
-            <button onclick="addRelationshipInput()">関係を追加</button>
-            <button onclick="generateDiagram()">相関図を生成</button>
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('people')">人物設定</button>
+                <button class="tab" onclick="switchTab('relationships')">関係設定</button>
+            </div>
             
-            <div class="sample-data">
-                <strong>サンプルデータを読み込む:</strong>
-                <button onclick="loadSampleData()">RPGパーティーの例</button>
+            <div id="people-tab" class="tab-content active">
+                <h3>人物と陣営の設定</h3>
+                <div id="people-list"></div>
+                <button onclick="addPersonInput()">人物を追加</button>
+            </div>
+            
+            <div id="relationships-tab" class="tab-content">
+                <h3>人物間の関係設定</h3>
+                <div id="relationships"></div>
+                <button onclick="addRelationshipInput()">関係を追加</button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button onclick="generateDiagram()" style="background-color: #28a745; font-size: 16px;">相関図を生成</button>
+                
+                <div class="sample-data">
+                    <strong>サンプルデータを読み込む:</strong>
+                    <button onclick="loadSampleData()">戦国時代の例</button>
+                </div>
             </div>
         </div>
         
@@ -169,85 +273,200 @@
                 <div class="legend-line" style="background-color: #dc3545;"></div>
                 <span>敵</span>
             </div>
+            <div class="legend-item">
+                <div class="legend-rect"></div>
+                <span>陣営</span>
+            </div>
         </div>
         
-        <svg id="diagram" width="100%" height="500"></svg>
+        <svg id="diagram" width="100%" height="600"></svg>
     </div>
 
     <script>
-        let relationshipCount = 0;
-        let nodes = [];
-        let links = [];
+        let people = [];
+        let relationships = [];
+        let factions = new Set();
+
+        function switchTab(tabName) {
+            // タブの切り替え
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        function addPersonInput() {
+            const container = document.getElementById('people-list');
+            const div = document.createElement('div');
+            div.className = 'person-input';
+            div.innerHTML = `
+                <input type="text" placeholder="人物名" class="person-name" onchange="updateFactionOptions()">
+                <input type="text" placeholder="属性（職業・役割など）" class="person-attribute">
+                <input type="text" placeholder="陣営名" class="faction-name" onchange="updateFactionOptions()">
+                <button class="remove-btn" onclick="removePerson(this)">削除</button>
+                <textarea placeholder="メモ（この人物の特徴、役割、背景など...）" class="person-memo"></textarea>
+            `;
+            container.appendChild(div);
+        }
+
+        function removePerson(button) {
+            button.parentElement.remove();
+            updateFactionOptions();
+        }
 
         function addRelationshipInput() {
             const container = document.getElementById('relationships');
             const div = document.createElement('div');
-            div.className = 'person-input';
+            div.className = 'relationship-input';
+            
+            // 人物の選択肢を作成
+            const personOptions = Array.from(document.querySelectorAll('.person-name'))
+                .map(input => input.value.trim())
+                .filter(name => name)
+                .map(name => `<option value="${name}">${name}</option>`)
+                .join('');
+            
             div.innerHTML = `
-                <input type="text" placeholder="人物A" class="person-a">
+                <select class="person-a">
+                    <option value="">人物Aを選択</option>
+                    ${personOptions}
+                </select>
                 <select class="relationship">
                     <option value="ally">味方</option>
                     <option value="enemy">敵</option>
                 </select>
-                <input type="text" placeholder="人物B" class="person-b">
+                <select class="person-b">
+                    <option value="">人物Bを選択</option>
+                    ${personOptions}
+                </select>
                 <button class="remove-btn" onclick="removeRelationship(this)">削除</button>
             `;
             container.appendChild(div);
-            relationshipCount++;
         }
 
         function removeRelationship(button) {
             button.parentElement.remove();
         }
 
-        function loadSampleData() {
-            // 既存の入力をクリア
-            document.getElementById('relationships').innerHTML = '';
+        function updateFactionOptions() {
+            // 関係設定の人物選択肢を更新
+            const personNames = Array.from(document.querySelectorAll('.person-name'))
+                .map(input => input.value.trim())
+                .filter(name => name);
             
-            // サンプルデータ
-            const sampleData = [
-                ['勇者', 'ally', '魔法使い'],
-                ['勇者', 'ally', '戦士'],
-                ['魔法使い', 'ally', '戦士'],
-                ['勇者', 'enemy', '魔王'],
-                ['魔王', 'ally', 'ドラゴン'],
-                ['魔王', 'ally', '闇の騎士']
-            ];
-
-            sampleData.forEach(([personA, relation, personB]) => {
-                addRelationshipInput();
-                const inputs = document.querySelectorAll('.person-input');
-                const lastInput = inputs[inputs.length - 1];
-                lastInput.querySelector('.person-a').value = personA;
-                lastInput.querySelector('.relationship').value = relation;
-                lastInput.querySelector('.person-b').value = personB;
+            const personOptions = personNames
+                .map(name => `<option value="${name}">${name}</option>`)
+                .join('');
+            
+            document.querySelectorAll('.person-a, .person-b').forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = `
+                    <option value="">人物を選択</option>
+                    ${personOptions}
+                `;
+                if (personNames.includes(currentValue)) {
+                    select.value = currentValue;
+                }
             });
         }
 
+        function loadSampleData() {
+            // 既存データをクリア
+            document.getElementById('people-list').innerHTML = '';
+            document.getElementById('relationships').innerHTML = '';
+            
+            // サンプル人物データ
+            const samplePeople = [
+                ['織田信長', '大名・革新者', '織田軍'],
+                ['豊臣秀吉', '家臣・知略家', '織田軍'],
+                ['明智光秀', '重臣・文化人', '織田軍'],
+                ['武田信玄', '大名・軍略家', '武田軍'],
+                ['上杉謙信', '大名・軍神', '上杉軍'],
+                ['徳川家康', '小大名・忍耐家', '徳川軍']
+            ];
+
+            samplePeople.forEach(([name, attribute, faction]) => {
+                addPersonInput();
+                const inputs = document.querySelectorAll('.person-input');
+                const lastInput = inputs[inputs.length - 1];
+                lastInput.querySelector('.person-name').value = name;
+                lastInput.querySelector('.person-attribute').value = attribute;
+                lastInput.querySelector('.faction-name').value = faction;
+                
+                // サンプルメモを追加
+                const memos = {
+                    '織田信長': '戦国の風雲児。天下統一を目指す革新的な武将。',
+                    '豊臣秀吉': '信長の家臣。農民出身だが知略に長けている。',
+                    '明智光秀': '信長の重臣。知的で文化人としても知られる。',
+                    '武田信玄': '甲斐の虎。騎馬隊で有名な戦国最強の一角。',
+                    '上杉謙信': '越後の龍。義を重んじる軍神と呼ばれた武将。',
+                    '徳川家康': '三河の小大名。忍耐強く最終的に天下を取る。'
+                };
+                lastInput.querySelector('.person-memo').value = memos[name] || '';
+            });
+
+            updateFactionOptions();
+
+            // サンプル関係データ
+            setTimeout(() => {
+                const sampleRelations = [
+                    ['織田信長', 'ally', '豊臣秀吉'],
+                    ['織田信長', 'ally', '明智光秀'],
+                    ['織田信長', 'enemy', '武田信玄'],
+                    ['武田信玄', 'enemy', '上杉謙信'],
+                    ['織田信長', 'enemy', '徳川家康'],
+                    ['豊臣秀吉', 'ally', '徳川家康']
+                ];
+
+                sampleRelations.forEach(([personA, relation, personB]) => {
+                    addRelationshipInput();
+                    const inputs = document.querySelectorAll('.relationship-input');
+                    const lastInput = inputs[inputs.length - 1];
+                    lastInput.querySelector('.person-a').value = personA;
+                    lastInput.querySelector('.relationship').value = relation;
+                    lastInput.querySelector('.person-b').value = personB;
+                });
+            }, 100);
+        }
+
         function generateDiagram() {
-            // データ収集
-            const relationships = [];
-            const personSet = new Set();
+            // 人物データの収集
+            people = [];
+            factions.clear();
             
             document.querySelectorAll('.person-input').forEach(input => {
-                const personA = input.querySelector('.person-a').value.trim();
-                const relation = input.querySelector('.relationship').value;
-                const personB = input.querySelector('.person-b').value.trim();
+                const name = input.querySelector('.person-name').value.trim();
+                const attribute = input.querySelector('.person-attribute').value.trim();
+                const faction = input.querySelector('.faction-name').value.trim();
                 
-                if (personA && personB) {
-                    relationships.push({source: personA, target: personB, type: relation});
-                    personSet.add(personA);
-                    personSet.add(personB);
+                if (name) {
+                    people.push({
+                        id: name,
+                        name: name,
+                        attribute: attribute,
+                        faction: faction || '無所属',
+                        memo: input.querySelector('.person-memo').value.trim()
+                    });
+                    factions.add(faction || '無所属');
                 }
             });
 
-            // ノードとリンクの準備
-            nodes = Array.from(personSet).map(person => ({id: person, name: person}));
-            links = relationships.map(rel => ({
-                source: rel.source,
-                target: rel.target,
-                type: rel.type
-            }));
+            // 関係データの収集
+            relationships = [];
+            document.querySelectorAll('.relationship-input').forEach(input => {
+                const personA = input.querySelector('.person-a').value;
+                const relation = input.querySelector('.relationship').value;
+                const personB = input.querySelector('.person-b').value;
+                
+                if (personA && personB) {
+                    relationships.push({
+                        source: personA,
+                        target: personB,
+                        type: relation
+                    });
+                }
+            });
 
             drawDiagram();
         }
@@ -255,90 +474,99 @@
         function drawDiagram() {
             const svg = document.getElementById('diagram');
             const width = svg.clientWidth;
-            const height = 500;
+            const height = 600;
             
             // SVGクリア
             svg.innerHTML = '';
             
-            if (nodes.length === 0) {
+            if (people.length === 0) {
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', width / 2);
                 text.setAttribute('y', height / 2);
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('fill', '#666');
-                text.textContent = '関係を入力して相関図を生成してください';
+                text.textContent = '人物を設定して相関図を生成してください';
                 svg.appendChild(text);
                 return;
             }
 
-            // 力学シミュレーションの設定
-            const simulation = {
-                nodes: JSON.parse(JSON.stringify(nodes)),
-                links: JSON.parse(JSON.stringify(links))
-            };
-
-            // ノードの初期位置をランダムに設定
-            simulation.nodes.forEach((node, i) => {
-                const angle = (i / simulation.nodes.length) * 2 * Math.PI;
-                const radius = Math.min(width, height) * 0.3;
-                node.x = width / 2 + Math.cos(angle) * radius;
-                node.y = height / 2 + Math.sin(angle) * radius;
+            // 陣営ごとにグループ化
+            const factionGroups = {};
+            people.forEach(person => {
+                if (!factionGroups[person.faction]) {
+                    factionGroups[person.faction] = [];
+                }
+                factionGroups[person.faction].push(person);
             });
 
-            // 簡単な力学計算（50回反復）
-            for (let iteration = 0; iteration < 50; iteration++) {
-                // リンクの力（バネ力）
-                simulation.links.forEach(link => {
-                    const source = simulation.nodes.find(n => n.id === link.source);
-                    const target = simulation.nodes.find(n => n.id === link.target);
-                    
-                    if (source && target) {
-                        const dx = target.x - source.x;
-                        const dy = target.y - source.y;
-                        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-                        const targetDistance = 120;
-                        const force = (distance - targetDistance) * 0.1;
-                        
-                        const fx = (dx / distance) * force;
-                        const fy = (dy / distance) * force;
-                        
-                        source.x += fx;
-                        source.y += fy;
-                        target.x -= fx;
-                        target.y -= fy;
-                    }
-                });
+            // 陣営ごとの配置計算
+            const factionKeys = Object.keys(factionGroups);
+            const factionPositions = {};
+            
+            factionKeys.forEach((faction, i) => {
+                const angle = (i / factionKeys.length) * 2 * Math.PI;
+                const centerX = width / 2 + Math.cos(angle) * 200;
+                const centerY = height / 2 + Math.sin(angle) * 150;
+                
+                factionPositions[faction] = { centerX, centerY };
+            });
 
-                // ノード間の反発力
-                simulation.nodes.forEach((nodeA, i) => {
-                    simulation.nodes.forEach((nodeB, j) => {
-                        if (i !== j) {
-                            const dx = nodeB.x - nodeA.x;
-                            const dy = nodeB.y - nodeA.y;
-                            const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-                            const repelForce = 500 / (distance * distance);
-                            
-                            const fx = (dx / distance) * repelForce;
-                            const fy = (dy / distance) * repelForce;
-                            
-                            nodeA.x -= fx;
-                            nodeA.y -= fy;
-                        }
-                    });
-                });
-
+            // 人物の位置を陣営内で配置
+            people.forEach((person, i) => {
+                const factionCenter = factionPositions[person.faction];
+                const factionMembers = factionGroups[person.faction];
+                const memberIndex = factionMembers.findIndex(p => p.id === person.id);
+                const memberCount = factionMembers.length;
+                
+                if (memberCount === 1) {
+                    person.x = factionCenter.centerX;
+                    person.y = factionCenter.centerY;
+                } else {
+                    const memberAngle = (memberIndex / memberCount) * 2 * Math.PI;
+                    const radius = Math.min(80, 30 + memberCount * 10);
+                    person.x = factionCenter.centerX + Math.cos(memberAngle) * radius;
+                    person.y = factionCenter.centerY + Math.sin(memberAngle) * radius;
+                }
+                
                 // 境界内に制限
-                simulation.nodes.forEach(node => {
-                    const margin = 50;
-                    node.x = Math.max(margin, Math.min(width - margin, node.x));
-                    node.y = Math.max(margin, Math.min(height - margin, node.y));
-                });
-            }
+                const margin = 60;
+                person.x = Math.max(margin, Math.min(width - margin, person.x));
+                person.y = Math.max(margin, Math.min(height - margin, person.y));
+            });
+
+            // 陣営の背景描画
+            Object.keys(factionGroups).forEach(faction => {
+                const members = factionGroups[faction];
+                if (members.length === 0) return;
+                
+                // 陣営の境界計算
+                const minX = Math.min(...members.map(m => m.x)) - 40;
+                const maxX = Math.max(...members.map(m => m.x)) + 40;
+                const minY = Math.min(...members.map(m => m.y)) - 40;
+                const maxY = Math.max(...members.map(m => m.y)) + 40;
+                
+                // 背景の四角形
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', minX);
+                rect.setAttribute('y', minY);
+                rect.setAttribute('width', maxX - minX);
+                rect.setAttribute('height', maxY - minY);
+                rect.setAttribute('class', 'faction-group');
+                svg.appendChild(rect);
+                
+                // 陣営ラベル
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', (minX + maxX) / 2);
+                label.setAttribute('y', minY - 10);
+                label.setAttribute('class', 'faction-label');
+                label.textContent = faction;
+                svg.appendChild(label);
+            });
 
             // リンクの描画
-            simulation.links.forEach(link => {
-                const source = simulation.nodes.find(n => n.id === link.source);
-                const target = simulation.nodes.find(n => n.id === link.target);
+            relationships.forEach(link => {
+                const source = people.find(p => p.id === link.source);
+                const target = people.find(p => p.id === link.target);
                 
                 if (source && target) {
                     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -352,26 +580,57 @@
             });
 
             // ノードの描画
-            simulation.nodes.forEach(node => {
+            people.forEach(person => {
                 // 円
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', node.x);
-                circle.setAttribute('cy', node.y);
-                circle.setAttribute('r', 25);
+                circle.setAttribute('cx', person.x);
+                circle.setAttribute('cy', person.y);
+                circle.setAttribute('r', 30);
                 circle.setAttribute('class', 'node');
+                
+                // メモがある場合はツールチップ用のタイトルを追加
+                if (person.memo) {
+                    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                    title.textContent = `${person.name}: ${person.memo}`;
+                    circle.appendChild(title);
+                }
+                
                 svg.appendChild(circle);
 
-                // テキスト
+                // 人物名のテキスト（属性がある場合は上に配置）
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', node.x);
-                text.setAttribute('y', node.y);
+                text.setAttribute('x', person.x);
+                if (person.attribute) {
+                    text.setAttribute('y', person.y - 5);
+                } else {
+                    text.setAttribute('y', person.y + 5);
+                }
                 text.setAttribute('class', 'node-text');
-                text.textContent = node.name;
+                text.textContent = person.name;
+                
+                // メモがある場合はテキストにもツールチップを追加
+                if (person.memo) {
+                    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                    title.textContent = `${person.name}: ${person.memo}`;
+                    text.appendChild(title);
+                }
+                
                 svg.appendChild(text);
+                
+                // 属性のテキスト（人物名の下に表示）
+                if (person.attribute) {
+                    const attrText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    attrText.setAttribute('x', person.x);
+                    attrText.setAttribute('y', person.y + 10);
+                    attrText.setAttribute('class', 'node-attribute');
+                    attrText.textContent = `(${person.attribute})`;
+                    svg.appendChild(attrText);
+                }
             });
         }
 
-        // 初期状態で1つの入力フィールドを追加
+        // 初期状態で1つずつの入力フィールドを追加
+        addPersonInput();
         addRelationshipInput();
     </script>
 </body>
